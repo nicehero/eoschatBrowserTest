@@ -1,0 +1,1 @@
+The Browser test for eoschat.
