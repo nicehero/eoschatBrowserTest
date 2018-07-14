@@ -1862,7 +1862,16 @@ function ecdh()
 
 	this.set_private_key = function(privateKeyStr) {
 	  this.privateKey = new BigInteger(privateKeyStr);
-	}
+  }
+  
+  this.get_private_key = function() {
+    try {
+      return this.privateKey.toString(16);
+    }
+    catch(e) {
+      return null;
+    }
+  }
 
 	this.get_public_key = function() {
 	  let before = new Date();

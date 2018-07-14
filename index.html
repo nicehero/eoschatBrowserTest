@@ -11,11 +11,50 @@
 	var codeAccount = "eoschat";
 	var myAccount = "";
 	
-	var sendMsg = (to,dataType,data) => {
+	var sendMsg = (to,dataType,data_,encrypt,chatPrivateKey) => {
 		document.getElementsByTagName('pre')[0].textContent = "";
 		let fr = myAccount;
 		(async () => {
 			try {
+				let data = data_;
+				if (encrypt)
+				{
+					let resultFrPubkey = await api.rpc.get_table_rows({
+					code:codeAccount,scope:codeAccount,table:"upuk",table_key:"",
+					lower_bound:fr, upper_bound:"",limit:1
+					});
+					if (resultFrPubkey.rows.length < 1)
+					{
+						document.getElementsByTagName('pre')[0].textContent = 'no pubkey,please set one';
+						return;
+					}
+					let ec = new ecdh();
+					ec.set_private_key(chatPrivateKey);
+					if (ec.get_public_key() != resultFrPubkey.rows[0].pubkey)
+					{
+						document.getElementsByTagName('pre')[0].textContent = 'error chatPrivateKey';
+						return;
+					}
+					let resultToPubkey = await api.rpc.get_table_rows({
+					code:codeAccount,scope:codeAccount,table:"upuk",table_key:"",
+					lower_bound:to, upper_bound:"",limit:1
+					});
+					if (resultToPubkey.rows.length < 1)
+					{
+						document.getElementsByTagName('pre')[0].textContent = 'receiver no pubkey';
+						return;
+					}
+					let fKey = ec.generate_final_key(resultToPubkey.rows[0].pubkey);
+					let aesCode = CryptoJS.AES.encrypt(data,fKey).toString();
+					data = "" + resultFrPubkey.rows[0].version + "_" 
+					+ resultToPubkey.rows[0].version + "_"
+					+ aesCode;
+					console.log("check");
+					console.log(aesCode);
+					console.log(CryptoJS.AES.decrypt(aesCode,fKey).toString(CryptoJS.enc.Utf8));
+				}
+				
+
 				let result = await api.pushTransaction({
 					blocksBehind: 3,
 					expireSeconds: 10,
@@ -26,7 +65,7 @@
 							actor: myAccount,
 							permission: 'active',
 						}],
-						data: {"from":fr,to,encrypt:false,dataType,data},
+						data: {"from":fr,to,encrypt,dataType,data},
 					}],
 				});
 				document.getElementsByTagName('pre')[0].textContent += '\n\nTransaction pushed!\n\n' + JSON.stringify(result, null, 4);
@@ -88,6 +127,31 @@
 			}
 		})();
 	}
+	var setPubKey = (pubkey) => {
+		document.getElementsByTagName('pre')[0].textContent = "";
+		(async () => {
+			try {
+				let result = await api.pushTransaction({
+					blocksBehind: 3,
+					expireSeconds: 10,
+					actions: [{
+						account: codeAccount,
+						name: "setpubkey",
+						authorization: [{
+							actor: myAccount,
+							permission: 'active',
+						}],
+						data: {owner:myAccount,pubkey},
+					}],
+				});
+				document.getElementsByTagName('pre')[0].textContent += '\n\nTransaction pushed!\n\n' + JSON.stringify(result, null, 4);
+			} catch (e) {
+				document.getElementsByTagName('pre')[0].textContent += '\nCaught exception: ' + e;
+				if (e instanceof eosjs2_jsonrpc.RpcError)
+					document.getElementsByTagName('pre')[0].textContent += '\n\n' + JSON.stringify(e.json, null, 4);
+			}
+		})();
+	}
 	var getMsgs = (lower_bound,upper_bound,callback) => {
 		if (lower_bound == null)
 		{
@@ -98,7 +162,8 @@
 			lower_bound = '' + lower_bound;
 		}
 		document.getElementsByTagName('pre')[0].textContent = "";
-		(async () => {let result = await api.rpc.get_table_rows({
+		(async () => {
+			let result = await api.rpc.get_table_rows({
 			code:codeAccount,scope:codeAccount,table:"msgt",table_key:"",
 			lower_bound, upper_bound
 			});
@@ -131,9 +196,12 @@
 		signatureProvider = new eosjs2_jssig.default([document.getElementById("privateKey").value]);
     	api = new eosjs2.Api({ rpc, signatureProvider });
 		myAccount = document.getElementById("accountName").value;
+
 		sendMsg(
 			document.getElementById("receiver").value,1,
-			document.getElementById("sendData").value
+			document.getElementById("sendData").value,
+			document.getElementById("checkencrypt").checked,
+			document.getElementById("chatPrivateKey").value
 		);
 	}
 	function doShowMsgs()
@@ -152,6 +220,29 @@
 		signatureProvider = new eosjs2_jssig.default([document.getElementById("privateKey").value]);
 		delMsg(document.getElementById("delID").value);
 	}
+	var myecdh = new ecdh();
+	var ecdh2 = new ecdh();
+	function randomChatPrivateKey()
+	{
+		myecdh.rand_private_key();
+		document.getElementById("chatPrivateKey").value = myecdh.get_private_key();
+	}
+	function commitPublicKey()
+	{
+		let pubkey = null;
+		try {
+			myecdh.set_private_key(document.getElementById("chatPrivateKey").value);
+			pubkey = myecdh.get_public_key();
+		}
+		catch(e) {
+			document.getElementsByTagName('pre')[0].textContent = "error \
+			chat private key";
+		}
+		signatureProvider = new eosjs2_jssig.default([document.getElementById("privateKey").value]);
+    	api = new eosjs2.Api({ rpc, signatureProvider });
+		myAccount = document.getElementById("accountName").value;
+		setPubKey(pubkey);
+	}
 </script>
 
 <center>
@@ -165,13 +256,16 @@
 	</div>
 	<div>	
 		<div>receiver</div>
-		<input type="text" id="receiver" value="" size="30" style="font-size:20px;"></input>
+		<input type="text" id="receiver" value="eoschattest2" size="30" style="font-size:20px;"></input>
 	</div>
 	<div>	
 		<div>data</div>
 		<input type="text" id="sendData" value="" size="30" style="font-size:20px;"></input>
 	</div>
 	<div>	
+		<input type="checkbox" id="checkencrypt" checked="checked">
+		encode
+		</input>
 		<input type="button" id="send" value="send" onclick="doSend()"></input>
 	</div>
 	<div>	
@@ -180,6 +274,14 @@
 		<div>
 		<input type="button" id="delMsg" value="delMsg" onclick="doDelMsg()"></input>
 		</div>
+	</div>
+	<div>	
+		<div>chatEncodePrivateKey</div>
+		<div>
+			<input type="text" id="chatPrivateKey" value="5fd6732fa52e0711403282597b58e095907e7ea7d8797b6e4988f9abf7eafd7e" size="45" style="font-size:20px;"></input>
+			<input type="button" id="randomChatPrivateKey" value="random" onclick="randomChatPrivateKey()"></input>
+		</div>
+		<input type="button" id="commitPublicKey" value="commit" onclick="commitPublicKey()"></input>
 	</div>
 	<div>	
 		<div>showMsgs</div>
