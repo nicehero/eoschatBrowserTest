@@ -55,9 +55,7 @@
 				}
 				
 
-				let result = await api.pushTransaction({
-					blocksBehind: 3,
-					expireSeconds: 10,
+				let result = await api.transact({
 					actions: [{
 						account: codeAccount,
 						name: "send",
@@ -67,6 +65,9 @@
 						}],
 						data: {"from":fr,to,encrypt,dataType,data},
 					}],
+				},{
+					blocksBehind: 3,
+					expireSeconds: 10
 				});
 				document.getElementsByTagName('pre')[0].textContent += '\n\nTransaction pushed!\n\n' + JSON.stringify(result, null, 4);
 			} catch (e) {
@@ -81,9 +82,7 @@
 		let owner = myAccount;
 		(async () => {
 			try {
-				let result = await api.pushTransaction({
-					blocksBehind: 3,
-					expireSeconds: 10,
+				let result = await api.transact({
 					actions: [{
 						account: codeAccount,
 						name: "tag",
@@ -93,6 +92,9 @@
 						}],
 						data: {owner,tag},
 					}],
+				},{
+					blocksBehind: 3,
+					expireSeconds: 10
 				});
 				document.getElementsByTagName('pre')[0].textContent += '\n\nTransaction pushed!\n\n' + JSON.stringify(result, null, 4);
 			} catch (e) {
@@ -106,9 +108,7 @@
 		document.getElementsByTagName('pre')[0].textContent = "";
 		(async () => {
 			try {
-				let result = await api.pushTransaction({
-					blocksBehind: 3,
-					expireSeconds: 10,
+				let result = await api.transact({
 					actions: [{
 						account: codeAccount,
 						name: "del",
@@ -118,6 +118,9 @@
 						}],
 						data: {pkey},
 					}],
+				},{
+					blocksBehind: 3,
+					expireSeconds: 10
 				});
 				document.getElementsByTagName('pre')[0].textContent += '\n\nTransaction pushed!\n\n' + JSON.stringify(result, null, 4);
 			} catch (e) {
@@ -131,9 +134,7 @@
 		document.getElementsByTagName('pre')[0].textContent = "";
 		(async () => {
 			try {
-				let result = await api.pushTransaction({
-					blocksBehind: 3,
-					expireSeconds: 10,
+				let result = await api.transact({
 					actions: [{
 						account: codeAccount,
 						name: "setpubkey",
@@ -143,6 +144,9 @@
 						}],
 						data: {owner:myAccount,pubkey},
 					}],
+				},{
+					blocksBehind: 3,
+					expireSeconds: 10
 				});
 				document.getElementsByTagName('pre')[0].textContent += '\n\nTransaction pushed!\n\n' + JSON.stringify(result, null, 4);
 			} catch (e) {
@@ -152,6 +156,32 @@
 			}
 		})();
 	}
+	
+	function get_table_rows(table,index_position,lower_bound,upper_bound,table_key,limit,key_type,callback)
+	{
+		let code = codeAccount;
+		let scope = codeAccount;
+		let json = true;
+		(async () => {
+			let result = await api.rpc.fetch('/v1/chain/get_table_rows', {
+				json,
+				code,
+				scope,
+				table,
+				table_key,
+				lower_bound,
+				upper_bound,
+				limit,
+				key_type,
+				index_position
+			});
+			if (typeof callback == "function")
+			{
+				callback(result);
+			}
+		})();
+	}
+
 	var getMsgs = (lower_bound,upper_bound,callback) => {
 		if (lower_bound == null)
 		{
@@ -164,7 +194,7 @@
 		document.getElementsByTagName('pre')[0].textContent = "";
 		(async () => {
 			let result = await api.rpc.get_table_rows({
-			code:codeAccount,scope:codeAccount,table:"msgt",table_key:"",
+			code:codeAccount,scope:codeAccount,table:"msgtt",table_key:"",
 			lower_bound, upper_bound
 			});
 			if (typeof callback == "function")
@@ -218,6 +248,7 @@
 			return;
 		}
 		signatureProvider = new eosjs2_jssig.default([document.getElementById("privateKey").value]);
+    	api = new eosjs2.Api({ rpc, signatureProvider });
 		delMsg(document.getElementById("delID").value);
 	}
 	var myecdh = new ecdh();
@@ -243,6 +274,14 @@
 		myAccount = document.getElementById("accountName").value;
 		setPubKey(pubkey);
 	}
+	
+	function gtr(table,index_position,lower_bound,upper_bound,table_key,limit,key_type)
+	{
+		signatureProvider = new eosjs2_jssig.default([document.getElementById("privateKey").value]);
+    	api = new eosjs2.Api({ rpc, signatureProvider });
+		get_table_rows(table,index_position,lower_bound,upper_bound,table_key,limit,key_type,console.log);
+	}
+	//get_table_rows(table,index_position,lower_bound,upper_bound,table_key,limit,key_type,console.log);
 </script>
 
 <center>
